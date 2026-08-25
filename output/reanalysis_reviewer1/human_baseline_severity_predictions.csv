@@ -1,0 +1,31 @@
+assessment,visit,baseline_deficit,baseline_deficit_z,severity_reference,predicted_score,ci_95_low,ci_95_high,n_subjects,model
+BI,T0,0.75,-1.1637129479258201,Q25 lower initial deficit,25.0,,,95,Observed baseline quantile anchor
+BI,T1,0.75,-1.1637129479258201,Q25 lower initial deficit,70.3625269709067,62.767104673199896,77.9579492686135,95,Gaussian GEE visualization; continuous deficit used in model
+BI,T2,0.75,-1.1637129479258201,Q25 lower initial deficit,78.7178036439698,68.27696554343501,89.15864174450459,95,Gaussian GEE visualization; continuous deficit used in model
+BI,T0,0.925,0.8004218499692843,Q75 higher initial deficit,7.5,,,95,Observed baseline quantile anchor
+BI,T1,0.925,0.8004218499692843,Q75 higher initial deficit,35.18073334521204,28.361718244234872,41.99974844618921,95,Gaussian GEE visualization; continuous deficit used in model
+BI,T2,0.925,0.8004218499692843,Q75 higher initial deficit,55.83541591514762,44.539486119827195,67.13134571046804,95,Gaussian GEE visualization; continuous deficit used in model
+FM-LE,T0,0.2093023255813954,-0.5955799542071436,Q25 lower initial deficit,68.0,,,93,Observed baseline quantile anchor
+FM-LE,T1,0.2093023255813954,-0.5955799542071436,Q25 lower initial deficit,72.92372449839797,70.5915196565607,75.25592934023524,93,Gaussian GEE visualization; continuous deficit used in model
+FM-LE,T2,0.2093023255813954,-0.5955799542071436,Q25 lower initial deficit,78.56692717090533,76.18576804370748,80.94808629810318,93,Gaussian GEE visualization; continuous deficit used in model
+FM-LE,T0,0.41860465116279066,0.621759292853612,Q75 higher initial deficit,50.0,,,93,Observed baseline quantile anchor
+FM-LE,T1,0.41860465116279066,0.621759292853612,Q75 higher initial deficit,59.18299436098462,56.17477994316687,62.19120877880238,93,Gaussian GEE visualization; continuous deficit used in model
+FM-LE,T2,0.41860465116279066,0.621759292853612,Q75 higher initial deficit,68.01522168456304,64.01804962012962,72.01239374899647,93,Gaussian GEE visualization; continuous deficit used in model
+FM-UE,T0,0.26190476190476186,-0.8871510837545865,Q25 lower initial deficit,93.0,,,94,Observed baseline quantile anchor
+FM-UE,T1,0.26190476190476186,-0.8871510837545865,Q25 lower initial deficit,101.172174811611,97.04376581451874,105.30058380870327,94,Gaussian GEE visualization; continuous deficit used in model
+FM-UE,T2,0.26190476190476186,-0.8871510837545865,Q25 lower initial deficit,109.97419467547378,104.95161600160367,114.9967733493439,94,Gaussian GEE visualization; continuous deficit used in model
+FM-UE,T0,0.5376984126984128,0.771623395400741,Q75 higher initial deficit,58.249999999999986,,,94,Observed baseline quantile anchor
+FM-UE,T1,0.5376984126984128,0.771623395400741,Q75 higher initial deficit,70.20063487330111,66.37551947750687,74.02575026909535,94,Gaussian GEE visualization; continuous deficit used in model
+FM-UE,T2,0.5376984126984128,0.771623395400741,Q75 higher initial deficit,80.34665559960906,73.43238071359275,87.26093048562538,94,Gaussian GEE visualization; continuous deficit used in model
+MRS,T0,0.6666666666666667,-1.1746691678593577,Q25 lower initial deficit,4.0,,,98,Observed baseline quantile anchor
+MRS,T1,0.6666666666666667,-1.1746691678593577,Q25 lower initial deficit,2.8709044994782627,2.510362748426951,3.2314462505295745,98,Gaussian GEE visualization; continuous deficit used in model
+MRS,T2,0.6666666666666667,-1.1746691678593577,Q25 lower initial deficit,2.3297592883732623,1.916944746230972,2.7425738305155525,98,Gaussian GEE visualization; continuous deficit used in model
+MRS,T0,0.8333333333333334,0.7764762296019491,Q75 higher initial deficit,5.0,,,98,Observed baseline quantile anchor
+MRS,T1,0.8333333333333334,0.7764762296019491,Q75 higher initial deficit,4.055822528793735,3.831766747260299,4.279878310327171,98,Gaussian GEE visualization; continuous deficit used in model
+MRS,T2,0.8333333333333334,0.7764762296019491,Q75 higher initial deficit,3.3914385377545013,3.07515390637205,3.7077231691369525,98,Gaussian GEE visualization; continuous deficit used in model
+NIHSS,T0,0.16666666666666663,-0.6423047451865325,Q25 lower initial deficit,6.999999999999998,,,94,Observed baseline quantile anchor
+NIHSS,T1,0.16666666666666663,-0.6423047451865325,Q25 lower initial deficit,4.755922051592103,4.088673691978843,5.423170411205363,94,Gaussian GEE visualization; continuous deficit used in model
+NIHSS,T2,0.16666666666666663,-0.6423047451865325,Q25 lower initial deficit,3.1253540293505244,2.1983470184065266,4.052361040294523,94,Gaussian GEE visualization; continuous deficit used in model
+NIHSS,T0,0.2857142857142857,0.5232675723334289,Q75 higher initial deficit,12.0,,,94,Observed baseline quantile anchor
+NIHSS,T1,0.2857142857142857,0.5232675723334289,Q75 higher initial deficit,8.177880202477551,7.484589987583265,8.871170417371838,94,Gaussian GEE visualization; continuous deficit used in model
+NIHSS,T2,0.2857142857142857,0.5232675723334289,Q75 higher initial deficit,5.039648067375782,3.5621289643174743,6.51716717043409,94,Gaussian GEE visualization; continuous deficit used in model

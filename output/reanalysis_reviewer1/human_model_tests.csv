@@ -1,0 +1,21 @@
+assessment,analysis,family,contrast,statistic,df,p_value,n_observations,n_subjects,p_value_fdr_bh
+FM-UE,raw_trajectory,human_visit_effect,overall visit effect,92.20711067538761,2,9.494679747756963e-21,252,121,1.1868349684696203e-20
+FM-UE,baseline_moderation,human_visit_by_baseline,visit by continuous baseline severity,0.3158527698981594,1,0.5741107031744405,131,94,0.5741107031744405
+FM-UE,exclude_baseline_boundaries,human_exclude_baseline_boundaries,overall visit effect,92.20711067538761,2,9.494679747756963e-21,252,121,9.494679747756963e-21
+FM-UE,exclude_boundary_observations,human_exclude_boundary_observations,overall visit effect,71.25302725734834,2,3.3697813441932323e-16,244,121,4.2122266802415403e-16
+FM-LE,raw_trajectory,human_visit_effect,overall visit effect,89.26673760613221,2,4.130229840242142e-20,250,120,4.130229840242142e-20
+FM-LE,baseline_moderation,human_visit_by_baseline,visit by continuous baseline severity,3.877935090673512,1,0.048924694941062656,130,93,0.12231173735265663
+FM-LE,exclude_baseline_boundaries,human_exclude_baseline_boundaries,overall visit effect,95.28519556032039,2,2.037429924615667e-21,245,118,2.5467874057695837e-21
+FM-LE,exclude_boundary_observations,human_exclude_boundary_observations,overall visit effect,68.74076576238963,2,1.1834022040317899e-15,231,120,1.1834022040317899e-15
+BI,raw_trajectory,human_visit_effect,overall visit effect,228.56710497251396,2,2.3296130095129877e-50,265,120,1.1648065047564938e-49
+BI,baseline_moderation,human_visit_by_baseline,visit by continuous baseline severity,2.8744652639185144,1,0.08999486398040393,145,95,0.1499914399673399
+BI,exclude_baseline_boundaries,human_exclude_baseline_boundaries,overall visit effect,225.6194249366311,2,1.0171016759210653e-49,249,112,5.085508379605326e-49
+BI,exclude_boundary_observations,human_exclude_boundary_observations,overall visit effect,185.76414635816175,2,4.5901634509858517e-41,230,117,2.2950817254929258e-40
+NIHSS,raw_trajectory,human_visit_effect,overall visit effect,134.3922634168724,2,6.562824546404944e-30,256,121,1.0938040910674908e-29
+NIHSS,baseline_moderation,human_visit_by_baseline,visit by continuous baseline severity,11.173876667645853,1,0.0008295710752264936,135,94,0.004147855376132468
+NIHSS,exclude_baseline_boundaries,human_exclude_baseline_boundaries,overall visit effect,136.7861505709426,2,1.982735594122038e-30,254,120,3.3045593235367304e-30
+NIHSS,exclude_boundary_observations,human_exclude_boundary_observations,overall visit effect,102.62326823014195,2,5.1956566855578185e-23,242,120,8.659427809263031e-23
+MRS,raw_trajectory,human_visit_effect,overall visit effect,177.65346095786367,2,2.648750840277842e-39,273,121,6.621877100694605e-39
+MRS,baseline_moderation,human_visit_by_baseline,visit by continuous baseline severity,0.6169742646858285,1,0.4321738954148622,152,98,0.5402173692685777
+MRS,exclude_baseline_boundaries,human_exclude_baseline_boundaries,overall visit effect,176.72713612471526,2,4.209107224048569e-39,272,120,1.0522768060121423e-38
+MRS,exclude_boundary_observations,human_exclude_boundary_observations,overall visit effect,177.92074232700168,2,2.3174036978459673e-39,271,120,5.793509244614918e-39
