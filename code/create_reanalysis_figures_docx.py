@@ -69,32 +69,36 @@ FIGURES = [
         "five clinical assessments.",
     ),
     (
-        "human_baseline_severity_trajectories.svg",
+        "human_baseline_continuous_relationships_prototype.svg",
         4,
         "Avoid mathematical coupling in change-score models. The authors should "
         "abandon change scores (Y - X) as dependent variables and instead model raw "
-        "post-stroke outcomes (Y) directly with baseline score (X) as a covariate.",
-        "The scatterplots are difficult to interpret. A low-versus-high deficit view "
-        "would be clearer, but avoid returning to arbitrary clustering. Explain how "
-        "the groups are defined and provide the Time x Baseline statistics.",
-        "The revised panel uses no clustering or dichotomized analysis. Lines are "
-        "model predictions at the observed 25th and 75th percentiles of one continuous "
-        "baseline-deficit variable, included only as interpretable reference profiles. "
-        "Inference comes from the continuous visit-by-baseline interaction reported in "
-        "the model-test table, with false-discovery-rate-adjusted p-values.",
-        "Predicted trajectories by continuous baseline deficit.",
-        "Lines show model-predicted raw scores at T1 and T2 for reference participants "
-        "at the 25th percentile (lower initial deficit; orange) and 75th percentile "
-        "(higher initial deficit; blue) of each assessment's continuous baseline-deficit "
-        "distribution. Deficit direction was aligned across scales so that larger values "
-        "always indicate worse baseline status. Points and lines are visualization aids, "
-        "not patient clusters or analysis groups. Models estimate raw follow-up outcome "
-        "as a function of visit, continuous T0 deficit, and their interaction; shaded "
-        "bands show approximate 95% confidence intervals. The interaction tests are "
-        "reported in the accompanying statistical tables.",
+        "post-stroke outcomes (Y) directly with baseline score (X) as a covariate. "
+        "Baseline severity should remain continuous, and a Time x Baseline interaction "
+        "should test whether its association with outcome changes over time.",
+        "The Q25 and Q75 trajectories appear to be two patient groups, and it is unclear "
+        "whether the T1 and T2 points are follow-up percentiles or model predictions. "
+        "A direct display of the continuous baseline relationship would make the tested "
+        "Time x Baseline interaction easier to understand.",
+        "Figure 4 was redesigned to display every observed T1 and T2 score against the "
+        "full continuous T0-deficit range. Separate fitted T1 and T2 relationships now "
+        "show the interaction directly as a difference in slopes. No percentile cutoff, "
+        "severity group, change score, or PRR quantity is used.",
+        "Continuous initial deficit and raw follow-up outcomes.",
+        "Raw T1 (orange) and T2 (blue) scores are plotted against continuous T0 deficit, "
+        "expressed as a percentage of each assessment's theoretical range and oriented "
+        "so that larger values indicate worse initial status. Solid lines show the "
+        "population-average fitted relationship at each visit, and shaded bands show "
+        "approximate 95% confidence intervals for the estimated mean. The Time x Baseline "
+        "interaction tests whether the T1 and T2 slopes differ. Thus, a significant "
+        "interaction indicates that the association between initial deficit and outcome "
+        "changes between visits; it does not test two baseline-severity groups. This "
+        "prototype uses Gaussian GEE for a common visual form across assessments; the "
+        "final inferential panel should use predictions from the same outcome-specific "
+        "models as the accompanying statistical tests.",
         "Replace existing Figure 4. The PRR and best-fit change-score panels should "
-        "be removed and replaced by predicted trajectories from the uncoupled model "
-        "with continuous baseline severity.",
+        "be removed and replaced by the direct continuous T0-deficit versus raw T1/T2 "
+        "outcome relationships.",
     ),
     (
         "cross_species_standardized_trajectories.svg",
@@ -163,6 +167,19 @@ TABLES = [
 POINTS_PER_CM = 72 / 2.54
 WD_COLOR_AUTOMATIC = -16777216
 WD_COLOR_RED = 255
+
+FIGURE_4_CHANGE_NOTE = (
+    "The previous version evaluated one continuous model at the 25th and 75th "
+    "percentiles of baseline deficit. Statistically, these were only two reference "
+    "inputs, not patient groups. Graphically, however, two colored trajectories labeled "
+    "Q25 and Q75 naturally resembled categorized cohorts. Connecting observed T0 anchors "
+    "to predicted T1 and T2 values could also suggest that T0 was modeled as an outcome, "
+    "and the follow-up points could be mistaken for follow-up percentiles. The revised "
+    "figure removes these understandable ambiguities by showing all observed follow-up "
+    "values over the complete continuous T0-deficit range. The difference between the "
+    "fitted T1 and T2 slopes now corresponds directly to the reviewer's requested "
+    "Time x Baseline interaction."
+)
 
 
 def format_table_value(value: object, column: str) -> str:
@@ -302,6 +319,14 @@ def create_document(figure_dir: Path, output_path: Path) -> None:
             selection.TypeText(caption)
             selection.TypeParagraph()
 
+            if figure_number == 4:
+                selection.ParagraphFormat.SpaceBefore = 6
+                selection.Font.Bold = True
+                selection.TypeText("Why Figure 4 was changed: ")
+                selection.Font.Bold = False
+                selection.TypeText(FIGURE_4_CHANGE_NOTE)
+                selection.TypeParagraph()
+
             selection.ParagraphFormat.SpaceBefore = 6
             selection.Font.Bold = True
             selection.TypeText("Recommended manuscript placement: ")
@@ -335,7 +360,7 @@ def create_document(figure_dir: Path, output_path: Path) -> None:
 def main() -> None:
     root = Path(__file__).resolve().parents[1]
     figure_dir = root / "output" / "reanalysis_reviewer1"
-    output_path = figure_dir / "longitudinal_reanalysis_figures_supervisor_revision.docx"
+    output_path = figure_dir / "longitudinal_reanalysis_figures_continuous_baseline_revision.docx"
     create_document(figure_dir, output_path)
     print(f"Word document written to {output_path}")
 

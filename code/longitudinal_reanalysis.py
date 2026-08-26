@@ -970,6 +970,98 @@ def plot_human_baseline_severity_trajectories(
     save_figure(figure, output_stem)
 
 
+def plot_human_baseline_continuous_relationships(
+    human: pd.DataFrame,
+    output_stem: Path,
+) -> None:
+    """Plot continuous T0-deficit associations with raw T1 and T2 outcomes."""
+    set_figure_style()
+    order = ["FM-LE", "FM-UE", "BI", "MRS", "NIHSS"]
+    colors = {"T1": "#E69F00", "T2": "#0072B2"}
+    figure, axes = plt.subplots(1, len(order), figsize=(18 / 2.54, 5.7 / 2.54), dpi=300)
+
+    for axis, assessment in zip(axes, order):
+        subset = human.loc[(human["assessment"] == assessment) & human["valid_score"]].copy()
+        baseline = subset.loc[subset["visit"] == "T0", ["record_id", "deficit_fraction"]].rename(
+            columns={"deficit_fraction": "baseline_deficit"}
+        )
+        followup = subset.loc[subset["visit"].isin(["T1", "T2"]), ["record_id", "visit", "score"]].merge(
+            baseline,
+            on="record_id",
+            how="inner",
+        )
+        followup["visit"] = followup["visit"].cat.remove_unused_categories()
+        subject_baselines = followup[["record_id", "baseline_deficit"]].drop_duplicates()
+        baseline_mean = subject_baselines["baseline_deficit"].mean()
+        baseline_sd = subject_baselines["baseline_deficit"].std()
+        followup["baseline_deficit_z"] = (followup["baseline_deficit"] - baseline_mean) / baseline_sd
+
+        result, _ = fit_gaussian_gee(
+            followup,
+            "score ~ C(visit) * baseline_deficit_z",
+            "record_id",
+        )
+        deficit_grid = np.linspace(
+            subject_baselines["baseline_deficit"].min(),
+            subject_baselines["baseline_deficit"].max(),
+            150,
+        )
+
+        for visit in ("T1", "T2"):
+            observed = followup.loc[followup["visit"] == visit]
+            axis.scatter(
+                100 * observed["baseline_deficit"],
+                observed["score"],
+                color=colors[visit],
+                s=7,
+                alpha=0.24,
+                linewidths=0,
+                zorder=1,
+            )
+
+            prediction_data = pd.DataFrame(
+                {
+                    "visit": visit,
+                    "baseline_deficit": deficit_grid,
+                    "baseline_deficit_z": (deficit_grid - baseline_mean) / baseline_sd,
+                }
+            )
+            prediction_data["visit"] = pd.Categorical(
+                prediction_data["visit"],
+                categories=followup["visit"].cat.categories,
+                ordered=True,
+            )
+            design = np.asarray(build_design_matrices([result.model.data.design_info], prediction_data)[0])
+            estimates = design @ result.params.to_numpy()
+            covariance = result.cov_params().to_numpy()
+            standard_errors = np.sqrt(np.einsum("ij,jk,ik->i", design, covariance, design))
+            axis.plot(100 * deficit_grid, estimates, color=colors[visit], linewidth=1.4, zorder=3)
+            axis.fill_between(
+                100 * deficit_grid,
+                estimates - 1.96 * standard_errors,
+                estimates + 1.96 * standard_errors,
+                color=colors[visit],
+                alpha=0.14,
+                linewidth=0,
+                zorder=2,
+            )
+
+        axis.set_title(assessment)
+        axis.set_xlabel("")
+        axis.set_ylabel("")
+        style_axis(axis)
+
+    legend = [
+        Line2D([0], [0], color=colors[visit], marker="o", markersize=3, linewidth=1.4, label=visit)
+        for visit in ("T1", "T2")
+    ]
+    figure.legend(handles=legend, loc="upper center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 1.01))
+    figure.supxlabel("Continuous T0 deficit (% of scale)", x=0.53, y=0.03)
+    figure.supylabel("Raw follow-up score", x=0.015)
+    figure.subplots_adjust(left=0.07, right=0.99, bottom=0.2, top=0.78, wspace=0.42)
+    save_figure(figure, output_stem)
+
+
 def plot_human_boundaries(human: pd.DataFrame, output_stem: Path) -> None:
     set_figure_style()
     order = ["FM-LE", "FM-UE", "BI", "MRS", "NIHSS"]
@@ -1223,6 +1315,7 @@ def run(root: Path, output_dir: Path) -> None:
     plot_human_trajectories(human, output_dir / "human_raw_score_trajectories")
     plot_human_baseline_followup(human, output_dir / "human_baseline_followup")
     plot_human_baseline_severity_trajectories(human, baseline_predictions, output_dir / "human_baseline_severity_trajectories")
+    plot_human_baseline_continuous_relationships(human, output_dir / "human_baseline_continuous_relationships_prototype")
     plot_human_boundaries(human, output_dir / "human_floor_ceiling")
     plot_mouse_trajectories(mouse, output_dir / "mouse_raw_score_trajectories")
     plot_cross_species_standardized(cross_species_summary, output_dir / "cross_species_standardized_trajectories")
