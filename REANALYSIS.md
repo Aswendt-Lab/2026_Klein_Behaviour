@@ -30,7 +30,7 @@ The pipeline reads:
 - `input/Stroke_types.xlsx` as a consistency check
 - `input/Mice_data.csv`
 
-Human observations are retained whenever the outcome is available. The pipeline does not require complete data for all visits or assessments. Mouse rows marked as included and not marked for exclusion are retained, and repeated animal/day measurements are averaged because no trial-level identifier is available.
+Human source rows are retained for audit. Current analyses use the provisional 120-participant cohort with at least one T0 score and stroke metadata; the one T1-only scored record without T0 or stroke metadata is excluded from analyses but remains in the long-data export. The historical protocol cohort of N=91 cannot be reconstructed from the supplied files because no participant-level eligibility ledger is present. The pipeline does not require complete data for all visits or assessments within the provisional cohort. Mouse rows marked as included and not marked for exclusion are retained, and repeated animal/day measurements are averaged because no trial-level identifier is available.
 
 ## Human Models
 
@@ -49,9 +49,9 @@ raw T1/T2 score ~ categorical visit * continuous T0 score
                  + (1 | participant)
 ```
 
-This prevents T0 from appearing simultaneously as both an outcome and a baseline covariate. The pipeline first attempts ordinal GEE for mRS because `statsmodels` does not provide ordinal mixed-effects models. If that model does not converge, it attempts a prespecified favorable-outcome split of mRS `0-2` versus `3-6` with logistic GEE. If sparse categories or complete separation prevent both approaches, it uses Gaussian GEE on raw mRS and labels that approximation explicitly.
+This prevents T0 from appearing simultaneously as both an outcome and a baseline covariate. The pipeline first attempts a no-intercept ordinal GEE for mRS because `statsmodels` does not provide ordinal mixed-effects models. Numerically unstable ordinal fits are rejected. It then attempts a prespecified favorable-outcome split of mRS `0-2` versus `3-6` with logistic GEE. If sparse categories or complete separation prevent both approaches, it uses Gaussian GEE on raw mRS and labels that approximation explicitly.
 
-For visualization, the pipeline predicts T1 and T2 scores at the observed 25th and 75th percentiles of continuous baseline deficit. These are reference profiles, not patient groups or clusters; all interaction tests use the continuous predictor.
+Figure 4 shows the complete continuous baseline-deficit relationship. Its fitted lines and confidence intervals are generated from the exact outcome-specific models used for the corresponding Time x Baseline tests. The mRS panel uses favorable-outcome probability when the binary GEE fallback is selected.
 
 Stroke type is reported descriptively but is not included in the primary models because the hemorrhage subgroup is too small for stable adjustment or interaction estimates.
 
@@ -81,6 +81,8 @@ The analysis reports exact floor and ceiling counts at each visit and performs t
 - Excluding participants at a boundary at T0
 - Excluding boundary observations from the repeated-outcome model
 
+Both rules are applied to the overall visit model and, separately, to the continuous Time x Baseline moderation model. These tests are exported in `human_boundary_sensitivity_tests.csv`.
+
 Two FM-LE values (`95` and `96`) exceed the documented maximum of `86`. They are retained in the exported long data, reported in `human_range_violations.csv`, and excluded from models pending source verification.
 
 The standard mRS range of `0-6` is used. The previous analysis used a maximum of `5`, although the input contains one score of `6`.
@@ -99,7 +101,7 @@ The pipeline exports manuscript-style SVG and PNG versions of:
 
 - Proposed Figure 2, `human_raw_score_trajectories`: available subject trajectories, visit distributions, and mean 95% confidence intervals
 - Proposed Figure 3, `human_floor_ceiling`: exact floor and ceiling percentages by assessment and visit
-- Proposed Figure 4, `human_baseline_severity_trajectories`: model predictions at the 25th and 75th percentiles of continuous baseline deficit
+- Proposed Figure 4, `human_baseline_continuous_relationships`: observed outcomes and exact-model predictions over the complete continuous T0-deficit range
 - Proposed Figure 5, `cross_species_standardized_trajectories`: conceptual human-mouse recovery comparisons at three standardized stages
 - Companion mouse figure, `mouse_raw_score_trajectories`: sham and stroke trajectories at days 0, 3, 7, 14, 21, 28, 42, and 56
 
@@ -111,6 +113,6 @@ Create the captioned Word document with native SVG figures using:
 python code/create_reanalysis_figures_docx.py
 ```
 
-The document is written to `output/reanalysis_reviewer1/longitudinal_reanalysis_figures_supervisor_revision.docx`. It includes the supervisor comments in red, analysis responses, captions, mean/SD tables, and primary model-test tables.
+The document is written to `output/reanalysis_reviewer1/longitudinal_reanalysis_markus_todos_revision.docx` by default. It includes cohort-flow tables, supervisor comments in red, analysis responses, captions, mean/SD tables, primary tests, and boundary-moderation sensitivity tests. Use `--figure-dir` to build the document from a dedicated revision folder.
 
 Complete tabular output is also consolidated in `output/reanalysis_reviewer1/reanalysis_statistical_tables.xlsx`. Its sheets include human and mouse descriptives, model coefficients and tests, boundary sensitivities, standardized responsiveness, nominal slopes and correlations, continuous baseline predictions, and cross-species stage summaries.

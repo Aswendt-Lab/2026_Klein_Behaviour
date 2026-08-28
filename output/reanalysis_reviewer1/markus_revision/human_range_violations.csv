@@ -1,0 +1,3 @@
+record_id,assessment,visit,score,source_column,stroke_type_raw,analysis_eligible,cohort_note,stroke_category,floor,ceiling,valid_score,at_floor,at_ceiling,oriented_fraction,deficit_fraction,oriented_score,recovery_z
+43,FM-LE,T0,95.0,T0_FM_LEx,ischaemie rechts,True,Provisional T0 cohort with stroke metadata,Ischemic,0.0,86.0,False,False,False,,,95.0,
+121,FM-LE,T1,96.0,T1_FM_Lex,,False,Outside provisional cohort; retained for audit,Unknown,0.0,86.0,False,False,False,,,96.0,

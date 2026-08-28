@@ -1,0 +1,45 @@
+stroke_category,stroke_type_raw,n_subjects
+Hemorrhage,Atypische Blutung,1
+Hemorrhage,Atypische intrakranielle Blutung,1
+Hemorrhage,ICB,9
+Hemorrhage,Kleinhirnblutung,1
+Hemorrhage,SAB,1
+Hemorrhage,Stammganglienblutung,4
+Hemorrhage,Thalamusblutung,1
+Ischemic,Anteriorinfarkt,1
+Ischemic,Basalganglieninfarkt,1
+Ischemic,Bihemispaehrische ischaemische Infrakte,1
+Ischemic,Bihemisphaerische Infarkte,2
+Ischemic,Bihemisphaerischeinfakrte,1
+Ischemic,Bithalamische Infrakte,1
+Ischemic,Grenzzoneninfarkt,1
+Ischemic,Grenzzoneninfarkt links,1
+Ischemic,Hirninfarkt a. cerebri media,1
+Ischemic,Hirninfarkt posterior rechts,1
+Ischemic,Infarkt Capsula interna,1
+Ischemic,Infarkt Mediastromgebiet,1
+Ischemic,Infarkt medulla oblongata,1
+Ischemic,Infrakt links,2
+Ischemic,Ischaemie,3
+Ischemic,Ischaemie links,3
+Ischemic,Ischaemie rechts,1
+Ischemic,Kleinhirninfarkt,2
+Ischemic,Kleinhirnischaemie,1
+Ischemic,Mediainfarkt,48
+Ischemic,Mediainfarkt ,1
+Ischemic,Mediainfarkt rechts,1
+Ischemic,Mediainfrakt,1
+Ischemic,Mediaischaemie,1
+Ischemic,Mediateiinfarkt,1
+Ischemic,Mediateilinfarkt,3
+Ischemic,Mediateilinfrakt,1
+Ischemic,Medulla-oblongata Infarkt,2
+Ischemic,Ponsinfarkt,7
+Ischemic,Ponsinfrakt,1
+Ischemic,Ponsischaemie,1
+Ischemic,Stammganglieninfarkt,1
+Ischemic,Thalamusinfarkt,1
+Ischemic,ischaemie links,3
+Ischemic,ischaemie rechts,1
+Ischemic,stammganglieninfarkt,1
+Ischemic,thalamische Infrakte links,1

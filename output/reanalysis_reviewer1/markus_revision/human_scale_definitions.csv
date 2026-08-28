@@ -1,0 +1,6 @@
+assessment,floor,ceiling,higher_better,definition
+FM-UE,0.0,126.0,True,Extended FM-UE total including H/I/J; manuscript methods
+FM-LE,0.0,86.0,True,Extended FM-LE total including H/I/J; manuscript methods
+BI,0.0,100.0,True,Barthel Index standard range
+NIHSS,0.0,42.0,False,NIHSS standard range
+MRS,0.0,6.0,False,Modified Rankin Scale standard range

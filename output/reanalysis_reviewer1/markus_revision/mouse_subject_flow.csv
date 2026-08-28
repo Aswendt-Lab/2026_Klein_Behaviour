@@ -1,0 +1,5 @@
+stage,n_animals,rule
+Animals in source CSV,162,Unique StudyID_old with StudyID fallback
+Eligible animals,141,IncludedInStudy=Ja and row not marked Exclude
+Eligible stroke animals,111,Eligible animals with Group=Stroke
+Eligible sham animals,30,Eligible animals with Group=Sham

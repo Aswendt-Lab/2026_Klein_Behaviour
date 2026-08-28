@@ -1,0 +1,5 @@
+stage,n_subjects,status
+Records with at least one supplied score,121.0,Observed in supplied score columns
+Provisional T0 cohort with stroke metadata,120.0,Used for current analyses pending protocol ledger
+Scored records outside provisional cohort,1.0,Retained in audit export; excluded from analyses
+Protocol-eligible cohort,,Not recoverable from supplied files; authoritative 91-ID ledger required

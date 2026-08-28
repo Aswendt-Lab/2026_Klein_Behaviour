@@ -1,0 +1,7 @@
+assessment,analysis,family,contrast,statistic,df,p_value,n_observations,n_subjects,p_value_fdr_bh
+C_PawDragPercent,group_trajectory,mouse_day_by_group,day by sham/stroke group,120.77907904475578,7,5.2727008419141837e-23,645,138,7.909051262871276e-23
+C_PawDragPercent,acute_severity_moderation,mouse_day_by_acute_severity,day by continuous day-3 severity,9.47102946638729,5,0.09168820157636652,285,87,0.09168820157636652
+GW_FootFault,group_trajectory,mouse_day_by_group,day by sham/stroke group,188.59528133616226,7,2.9735423751785983e-37,753,141,8.920627125535795e-37
+GW_FootFault,acute_severity_moderation,mouse_day_by_acute_severity,day by continuous day-3 severity,58.47981353096201,5,2.5042663119575356e-11,388,103,7.512798935872608e-11
+RB_HindlimbDrop,group_trajectory,mouse_day_by_group,day by sham/stroke group,84.39503448070639,7,1.7432567533222116e-15,705,139,1.7432567533222116e-15
+RB_HindlimbDrop,acute_severity_moderation,mouse_day_by_acute_severity,day by continuous day-3 severity,49.10932603508203,5,2.10795165376246e-09,338,92,3.16192748064369e-09

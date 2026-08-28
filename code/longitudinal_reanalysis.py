@@ -15,6 +15,7 @@ import statsmodels.formula.api as smf
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from patsy import build_design_matrices
+from scipy.special import expit
 from scipy.stats import chi2
 from scipy.stats import spearmanr
 from statsmodels.genmod.cov_struct import Exchangeable
@@ -24,11 +25,11 @@ from statsmodels.stats.multitest import multipletests
 
 
 HUMAN_SCALES = {
-    "FM-UE": {"floor": 0.0, "ceiling": 126.0, "higher_better": True},
-    "FM-LE": {"floor": 0.0, "ceiling": 86.0, "higher_better": True},
-    "BI": {"floor": 0.0, "ceiling": 100.0, "higher_better": True},
-    "NIHSS": {"floor": 0.0, "ceiling": 42.0, "higher_better": False},
-    "MRS": {"floor": 0.0, "ceiling": 6.0, "higher_better": False},
+    "FM-UE": {"floor": 0.0, "ceiling": 126.0, "higher_better": True, "definition": "Extended FM-UE total including H/I/J; manuscript methods"},
+    "FM-LE": {"floor": 0.0, "ceiling": 86.0, "higher_better": True, "definition": "Extended FM-LE total including H/I/J; manuscript methods"},
+    "BI": {"floor": 0.0, "ceiling": 100.0, "higher_better": True, "definition": "Barthel Index standard range"},
+    "NIHSS": {"floor": 0.0, "ceiling": 42.0, "higher_better": False, "definition": "NIHSS standard range"},
+    "MRS": {"floor": 0.0, "ceiling": 6.0, "higher_better": False, "definition": "Modified Rankin Scale standard range"},
 }
 
 MOUSE_OUTCOMES = {
@@ -78,6 +79,7 @@ def load_human_inputs(root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     clinical_source = pd.read_excel(input_dir / "Assessments_JK_V1.2.xlsx")
     stroke_csv = pd.read_csv(input_dir / "Stroke_types.csv")
     stroke_xlsx = pd.read_excel(input_dir / "Stroke_types.xlsx")
+    workbook_ids = set(fm_source["record_id"].dropna()) | set(clinical_source["record_id"].dropna())
 
     fm_map = {
         "T0_FM_UEx": ("FM-UE", "T0"),
@@ -107,6 +109,15 @@ def load_human_inputs(root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     stroke_csv = stroke_csv.rename(columns={"stroke_type": "stroke_type_raw"})
     human = human.merge(stroke_csv[["record_id", "stroke_type_raw"]], on="record_id", how="left")
+    t0_ids = set(human.loc[human["visit"].eq("T0"), "record_id"])
+    metadata_ids = set(stroke_csv["record_id"])
+    analysis_ids = t0_ids & metadata_ids
+    human["analysis_eligible"] = human["record_id"].isin(analysis_ids)
+    human["cohort_note"] = np.where(
+        human["analysis_eligible"],
+        "Provisional T0 cohort with stroke metadata",
+        "Outside provisional cohort; retained for audit",
+    )
     human["stroke_category"] = human["stroke_type_raw"].map(classify_stroke)
     human["visit"] = pd.Categorical(human["visit"], categories=["T0", "T1", "T2"], ordered=True)
 
@@ -127,11 +138,11 @@ def load_human_inputs(root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     human["deficit_fraction"] = 1 - human["oriented_fraction"]
     human["oriented_score"] = np.where(higher_better, human["score"], human["ceiling"] - human["score"])
     human["recovery_z"] = np.nan
-    for assessment, group in human.loc[human["valid_score"]].groupby("assessment"):
+    for assessment, group in human.loc[human["valid_score"] & human["analysis_eligible"]].groupby("assessment"):
         baseline = group.loc[group["visit"] == "T0", "oriented_score"]
         baseline_mean = baseline.mean()
         baseline_sd = baseline.std()
-        mask = human["assessment"].eq(assessment) & human["valid_score"]
+        mask = human["assessment"].eq(assessment) & human["valid_score"] & human["analysis_eligible"]
         human.loc[mask, "recovery_z"] = (human.loc[mask, "oriented_score"] - baseline_mean) / baseline_sd
 
     stroke_compare = stroke_csv.merge(
@@ -147,7 +158,10 @@ def load_human_inputs(root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
         [
             {"check": "FM workbook rows", "value": len(fm_source), "detail": "source rows"},
             {"check": "Assessment workbook rows", "value": len(clinical_source), "detail": "source rows"},
-            {"check": "Human records in either workbook", "value": human["record_id"].nunique(), "detail": "records with at least one score"},
+            {"check": "Human records in either workbook", "value": len(workbook_ids), "detail": "all record IDs, including records without selected scores"},
+            {"check": "Human records with any score", "value": human["record_id"].nunique(), "detail": "records with at least one selected score"},
+            {"check": "Provisional human analysis cohort", "value": len(analysis_ids), "detail": "records with T0 score and stroke metadata; protocol eligibility ledger unavailable"},
+            {"check": "Scored records outside provisional cohort", "value": human.loc[~human["analysis_eligible"], "record_id"].nunique(), "detail": "retained for audit but excluded from analyses"},
             {"check": "Human score observations", "value": len(human), "detail": "non-missing raw scores"},
             {"check": "Duplicate human keys", "value": int(duplicate_keys.sum()), "detail": "record/assessment/visit"},
             {"check": "Out-of-range human scores", "value": int((~human["valid_score"]).sum()), "detail": "preserved and excluded from models"},
@@ -208,6 +222,7 @@ def load_mouse_input(root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     quality = pd.DataFrame(
         [
             {"check": "Mouse CSV rows", "value": len(source), "detail": "source rows"},
+            {"check": "Mouse CSV animals", "value": source["animal_id"].nunique(), "detail": "unique StudyID_old with StudyID fallback"},
             {"check": "Study-eligible mouse rows", "value": len(study_eligible), "detail": "IncludedInStudy=Ja and not Exclude"},
             {"check": "Eligible mouse rows with day", "value": len(eligible), "detail": "modeled source rows"},
             {"check": "Eligible mouse rows missing day", "value": int(study_eligible["TimePointMerged"].isna().sum()), "detail": "not modeled"},
@@ -233,6 +248,67 @@ def availability_table(
         .agg(n_observations=(id_col, "size"), n_subjects=(id_col, "nunique"))
         .reset_index()
     )
+
+
+def human_subject_flow(human: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    provisional = human.loc[human["analysis_eligible"]].copy()
+    cohort_n = provisional["record_id"].nunique()
+    stage_rows = [
+        {"stage": "Records with at least one supplied score", "n_subjects": human["record_id"].nunique(), "status": "Observed in supplied score columns"},
+        {"stage": "Provisional T0 cohort with stroke metadata", "n_subjects": cohort_n, "status": "Used for current analyses pending protocol ledger"},
+        {"stage": "Scored records outside provisional cohort", "n_subjects": human.loc[~human["analysis_eligible"], "record_id"].nunique(), "status": "Retained in audit export; excluded from analyses"},
+        {"stage": "Protocol-eligible cohort", "n_subjects": np.nan, "status": "Not recoverable from supplied files; authoritative 91-ID ledger required"},
+    ]
+
+    availability_rows = []
+    for (assessment, visit), group in provisional.groupby(["assessment", "visit"], observed=True):
+        available_ids = group["record_id"].nunique()
+        invalid_ids = group.loc[~group["valid_score"], "record_id"].nunique()
+        analyzed_ids = group.loc[group["valid_score"], "record_id"].nunique()
+        availability_rows.append(
+            {
+                "assessment": assessment,
+                "visit": visit,
+                "provisional_cohort_n": cohort_n,
+                "score_available_n": available_ids,
+                "score_missing_n": cohort_n - available_ids,
+                "invalid_score_n": invalid_ids,
+                "analyzed_n": analyzed_ids,
+            }
+        )
+    return pd.DataFrame(stage_rows), pd.DataFrame(availability_rows)
+
+
+def mouse_subject_flow(mouse: pd.DataFrame, quality: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    source_animals = int(quality.loc[quality["check"] == "Mouse CSV animals", "value"].item())
+    eligible_animals = mouse["animal_id"].nunique()
+    group_counts = mouse.groupby("group")["animal_id"].nunique()
+    stage_rows = [
+        {"stage": "Animals in source CSV", "n_animals": source_animals, "rule": "Unique StudyID_old with StudyID fallback"},
+        {"stage": "Eligible animals", "n_animals": eligible_animals, "rule": "IncludedInStudy=Ja and row not marked Exclude"},
+        {"stage": "Eligible stroke animals", "n_animals": int(group_counts.get("Stroke", 0)), "rule": "Eligible animals with Group=Stroke"},
+        {"stage": "Eligible sham animals", "n_animals": int(group_counts.get("Sham", 0)), "rule": "Eligible animals with Group=Sham"},
+    ]
+
+    availability_rows = []
+    group_denominators = mouse.groupby("group")["animal_id"].nunique()
+    for (outcome, group_name, day), group in mouse.groupby(["outcome", "group", "day"]):
+        available = group["animal_id"].nunique()
+        valid = group.loc[group["valid_value"], "animal_id"].nunique()
+        denominator = int(group_denominators[group_name])
+        availability_rows.append(
+            {
+                "outcome": outcome,
+                "group": group_name,
+                "day": day,
+                "eligible_group_n": denominator,
+                "outcome_available_n": available,
+                "outcome_missing_n": denominator - available,
+                "invalid_value_n": available - valid,
+                "analyzed_n": valid,
+            }
+        )
+    return pd.DataFrame(stage_rows), pd.DataFrame(availability_rows)
 
 
 def boundary_table(
@@ -447,15 +523,20 @@ def fit_ordinal_gee(data: pd.DataFrame, formula: str, group_col: str):
         raise RuntimeError("Ordinal GEE did not converge")
     if not np.isfinite(result.params).all() or not np.isfinite(standard_errors).all():
         raise RuntimeError("Ordinal GEE returned non-finite estimates")
-    if result.params.abs().max() > 100:
-        raise RuntimeError("Ordinal GEE returned implausibly large estimates")
+    if "Intercept" in result.params.index:
+        raise RuntimeError("Ordinal GEE must not include an intercept")
+    if result.params.abs().max() > 100 or standard_errors.abs().max() > 100:
+        raise RuntimeError("Ordinal GEE returned implausibly large estimates or standard errors")
+    covariance = result.cov_params().to_numpy(dtype=float)
+    if not np.isfinite(covariance).all() or np.linalg.cond(covariance) > 1e12:
+        raise RuntimeError("Ordinal GEE covariance is numerically unstable")
     return result, warning_text
 
 
 def fit_mrs_repeated(data: pd.DataFrame, rhs: str, group_col: str):
     fallback_reasons = []
     try:
-        result, warning_text = fit_ordinal_gee(data, f"score ~ {rhs}", group_col)
+        result, warning_text = fit_ordinal_gee(data, f"score ~ 0 + {rhs}", group_col)
         return result, "ordinal_GEE", warning_text
     except Exception as ordinal_error:
         fallback_reasons.append(f"Ordinal GEE fallback: {ordinal_error!r}")
@@ -541,10 +622,86 @@ def apply_fdr(tests: pd.DataFrame) -> pd.DataFrame:
     return tests
 
 
-def run_human_models(human: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def prepare_baseline_moderation_data(assessment_data: pd.DataFrame, variant: str) -> pd.DataFrame:
+    data = assessment_data.copy()
+    if variant == "exclude_baseline_boundaries":
+        boundary_ids = data.loc[
+            data["visit"].eq("T0") & (data["at_floor"] | data["at_ceiling"]), "record_id"
+        ]
+        data = data.loc[~data["record_id"].isin(boundary_ids)].copy()
+    elif variant == "exclude_boundary_observations":
+        data = data.loc[~(data["at_floor"] | data["at_ceiling"])].copy()
+    elif variant != "primary":
+        raise ValueError(f"Unknown baseline-moderation variant: {variant}")
+
+    baseline = data.loc[data["visit"] == "T0", ["record_id", "score", "deficit_fraction"]].rename(
+        columns={"score": "baseline_score", "deficit_fraction": "baseline_deficit"}
+    )
+    followup = data.loc[data["visit"].isin(["T1", "T2"])].merge(baseline, on="record_id", how="inner")
+    followup["visit"] = followup["visit"].cat.remove_unused_categories()
+    subject_baselines = followup[["record_id", "baseline_deficit"]].drop_duplicates()
+    baseline_mean = subject_baselines["baseline_deficit"].mean()
+    baseline_sd = subject_baselines["baseline_deficit"].std()
+    if not len(followup) or not np.isfinite(baseline_sd) or baseline_sd <= 0:
+        return pd.DataFrame()
+    followup["baseline_deficit_z"] = (followup["baseline_deficit"] - baseline_mean) / baseline_sd
+    followup.attrs["baseline_mean"] = baseline_mean
+    followup.attrs["baseline_sd"] = baseline_sd
+    return followup
+
+
+def fit_human_baseline_model(followup: pd.DataFrame, assessment: str):
+    if assessment == "MRS":
+        return fit_mrs_repeated(followup, "C(visit) * baseline_deficit_z", "record_id")
+    return fit_continuous_repeated(followup, "score ~ C(visit) * baseline_deficit_z", "record_id")
+
+
+def result_coefficient_rows(result, metadata: dict[str, object], model_name: str, warning_text: str) -> list[dict[str, object]]:
+    if model_name == "random_intercept_LMM":
+        return mixed_coefficients(result, metadata, warning_text)
+    return gee_coefficients(result, metadata, warning_text)
+
+
+def baseline_model_predictions(result, model_name: str, assessment: str, followup: pd.DataFrame) -> list[dict[str, object]]:
+    if model_name == "ordinal_GEE":
+        raise RuntimeError("Ordinal GEE category-probability plotting is not implemented")
+    subject_baselines = followup[["record_id", "baseline_deficit"]].drop_duplicates()
+    baseline_mean = followup.attrs["baseline_mean"]
+    baseline_sd = followup.attrs["baseline_sd"]
+    deficit_grid = np.linspace(subject_baselines["baseline_deficit"].min(), subject_baselines["baseline_deficit"].max(), 150)
+    parameters = result.fe_params if model_name == "random_intercept_LMM" else result.params
+    covariance = result.cov_params().loc[parameters.index, parameters.index].to_numpy(dtype=float)
+    rows = []
+    for visit in ("T1", "T2"):
+        prediction_data = pd.DataFrame(
+            {"visit": visit, "baseline_deficit": deficit_grid, "baseline_deficit_z": (deficit_grid - baseline_mean) / baseline_sd}
+        )
+        prediction_data["visit"] = pd.Categorical(prediction_data["visit"], categories=followup["visit"].cat.categories, ordered=True)
+        design = np.asarray(build_design_matrices([result.model.data.design_info], prediction_data)[0])
+        linear_prediction = design @ parameters.to_numpy(dtype=float)
+        linear_se = np.sqrt(np.einsum("ij,jk,ik->i", design, covariance, design))
+        if model_name == "binary_logistic_GEE_mRS_0_2":
+            estimates = expit(linear_prediction)
+            lower = expit(linear_prediction - 1.96 * linear_se)
+            upper = expit(linear_prediction + 1.96 * linear_se)
+            estimand = "Probability of favorable mRS (0-2)"
+        else:
+            estimates = linear_prediction
+            lower = linear_prediction - 1.96 * linear_se
+            upper = linear_prediction + 1.96 * linear_se
+            estimand = "Raw follow-up score"
+        for deficit, estimate, ci_low, ci_high in zip(deficit_grid, estimates, lower, upper):
+            rows.append(
+                {"assessment": assessment, "visit": visit, "baseline_deficit": deficit, "predicted_outcome": estimate, "ci_95_low": ci_low, "ci_95_high": ci_high, "estimand": estimand, "model": model_name, "n_observations": len(followup), "n_subjects": followup["record_id"].nunique()}
+            )
+    return rows
+
+
+def run_human_models(human: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     coefficients: list[dict[str, object]] = []
     tests: list[dict[str, object]] = []
     failures: list[dict[str, object]] = []
+    predictions: list[dict[str, object]] = []
 
     for assessment in HUMAN_SCALES:
         assessment_data = human.loc[(human["assessment"] == assessment) & human["valid_score"]].copy()
@@ -552,52 +709,31 @@ def run_human_models(human: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, p
         try:
             if assessment == "MRS":
                 result, model_name, warning_text = fit_mrs_repeated(assessment_data, "C(visit)", "record_id")
-                coefficients.extend(gee_coefficients(result, {"assessment": assessment, "analysis": "raw_trajectory", "model": model_name}, warning_text))
-                statistic, degrees, p_value = parameter_wald_test(result, ("C(visit)",))
             else:
                 result, model_name, warning_text = fit_continuous_repeated(assessment_data, "score ~ C(visit)", "record_id")
-                metadata = {"assessment": assessment, "analysis": "raw_trajectory", "model": model_name}
-                if model_name == "random_intercept_LMM":
-                    coefficients.extend(mixed_coefficients(result, metadata, warning_text))
-                else:
-                    coefficients.extend(gee_coefficients(result, metadata, warning_text))
-                statistic, degrees, p_value = parameter_wald_test(result, ("C(visit)",))
-            tests.append({"assessment": assessment, "analysis": "raw_trajectory", "family": "human_visit_effect", "contrast": "overall visit effect", "statistic": statistic, "df": degrees, "p_value": p_value, "n_observations": len(assessment_data), "n_subjects": assessment_data["record_id"].nunique()})
+            metadata = {"assessment": assessment, "analysis": "raw_trajectory", "model": model_name}
+            coefficients.extend(result_coefficient_rows(result, metadata, model_name, warning_text))
+            statistic, degrees, p_value = parameter_wald_test(result, ("C(visit)",))
+            tests.append({"assessment": assessment, "analysis": "raw_trajectory", "model": model_name, "family": "human_visit_effect", "contrast": "overall visit effect", "statistic": statistic, "df": degrees, "p_value": p_value, "n_observations": len(assessment_data), "n_subjects": assessment_data["record_id"].nunique()})
         except Exception as error:
             failures.append({"dataset": "human", "outcome": assessment, "analysis": "raw_trajectory", "error": repr(error)})
 
-        baseline = assessment_data.loc[assessment_data["visit"] == "T0", ["record_id", "score", "deficit_fraction"]].rename(columns={"score": "baseline_score", "deficit_fraction": "baseline_deficit"})
-        followup = assessment_data.loc[assessment_data["visit"].isin(["T1", "T2"])].merge(baseline, on="record_id", how="inner")
-        followup["visit"] = followup["visit"].cat.remove_unused_categories()
-        subject_baselines = followup[["record_id", "baseline_deficit"]].drop_duplicates()
-        baseline_mean = subject_baselines["baseline_deficit"].mean()
-        baseline_sd = subject_baselines["baseline_deficit"].std()
-        if len(followup) and pd.notna(baseline_sd) and baseline_sd > 0:
-            followup["baseline_deficit_z"] = (followup["baseline_deficit"] - baseline_mean) / baseline_sd
+        for variant in ("primary", "exclude_baseline_boundaries", "exclude_boundary_observations"):
+            followup = prepare_baseline_moderation_data(assessment_data, variant)
+            if followup.empty or followup["visit"].nunique() < 2:
+                continue
+            analysis_name = "baseline_moderation" if variant == "primary" else f"baseline_moderation_{variant}"
+            family = "human_visit_by_baseline" if variant == "primary" else f"human_visit_by_baseline_{variant}"
             try:
-                if assessment == "MRS":
-                    result, model_name, warning_text = fit_mrs_repeated(
-                        followup,
-                        "C(visit) * baseline_deficit_z",
-                        "record_id",
-                    )
-                    coefficients.extend(gee_coefficients(result, {"assessment": assessment, "analysis": "baseline_moderation", "model": model_name}, warning_text))
-                    statistic, degrees, p_value = parameter_wald_test(result, ("C(visit)", "baseline_deficit_z"))
-                else:
-                    result, model_name, warning_text = fit_continuous_repeated(
-                        followup,
-                        "score ~ C(visit) * baseline_deficit_z",
-                        "record_id",
-                    )
-                    metadata = {"assessment": assessment, "analysis": "baseline_moderation", "model": model_name}
-                    if model_name == "random_intercept_LMM":
-                        coefficients.extend(mixed_coefficients(result, metadata, warning_text))
-                    else:
-                        coefficients.extend(gee_coefficients(result, metadata, warning_text))
-                    statistic, degrees, p_value = parameter_wald_test(result, ("C(visit)", "baseline_deficit_z"))
-                tests.append({"assessment": assessment, "analysis": "baseline_moderation", "family": "human_visit_by_baseline", "contrast": "visit by continuous baseline severity", "statistic": statistic, "df": degrees, "p_value": p_value, "n_observations": len(followup), "n_subjects": followup["record_id"].nunique()})
+                result, model_name, warning_text = fit_human_baseline_model(followup, assessment)
+                metadata = {"assessment": assessment, "analysis": analysis_name, "model": model_name}
+                coefficients.extend(result_coefficient_rows(result, metadata, model_name, warning_text))
+                statistic, degrees, p_value = parameter_wald_test(result, ("C(visit)", "baseline_deficit_z"))
+                tests.append({"assessment": assessment, "analysis": analysis_name, "model": model_name, "family": family, "contrast": "visit by continuous baseline severity", "statistic": statistic, "df": degrees, "p_value": p_value, "n_observations": len(followup), "n_subjects": followup["record_id"].nunique()})
+                if variant == "primary":
+                    predictions.extend(baseline_model_predictions(result, model_name, assessment, followup))
             except Exception as error:
-                failures.append({"dataset": "human", "outcome": assessment, "analysis": "baseline_moderation", "error": repr(error)})
+                failures.append({"dataset": "human", "outcome": assessment, "analysis": analysis_name, "error": repr(error)})
 
         for variant in ("exclude_baseline_boundaries", "exclude_boundary_observations"):
             if variant == "exclude_baseline_boundaries":
@@ -611,22 +747,17 @@ def run_human_models(human: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, p
             try:
                 if assessment == "MRS":
                     result, model_name, warning_text = fit_mrs_repeated(sensitivity, "C(visit)", "record_id")
-                    coefficients.extend(gee_coefficients(result, {"assessment": assessment, "analysis": variant, "model": model_name}, warning_text))
-                    statistic, degrees, p_value = parameter_wald_test(result, ("C(visit)",))
                 else:
                     result, model_name, warning_text = fit_continuous_repeated(sensitivity, "score ~ C(visit)", "record_id")
-                    metadata = {"assessment": assessment, "analysis": variant, "model": model_name}
-                    if model_name == "random_intercept_LMM":
-                        coefficients.extend(mixed_coefficients(result, metadata, warning_text))
-                    else:
-                        coefficients.extend(gee_coefficients(result, metadata, warning_text))
-                    statistic, degrees, p_value = parameter_wald_test(result, ("C(visit)",))
-                tests.append({"assessment": assessment, "analysis": variant, "family": f"human_{variant}", "contrast": "overall visit effect", "statistic": statistic, "df": degrees, "p_value": p_value, "n_observations": len(sensitivity), "n_subjects": sensitivity["record_id"].nunique()})
+                metadata = {"assessment": assessment, "analysis": variant, "model": model_name}
+                coefficients.extend(result_coefficient_rows(result, metadata, model_name, warning_text))
+                statistic, degrees, p_value = parameter_wald_test(result, ("C(visit)",))
+                tests.append({"assessment": assessment, "analysis": variant, "model": model_name, "family": f"human_{variant}", "contrast": "overall visit effect", "statistic": statistic, "df": degrees, "p_value": p_value, "n_observations": len(sensitivity), "n_subjects": sensitivity["record_id"].nunique()})
             except Exception as error:
                 failures.append({"dataset": "human", "outcome": assessment, "analysis": variant, "error": repr(error)})
 
     failure_columns = ["dataset", "outcome", "analysis", "error"]
-    return pd.DataFrame(coefficients), apply_fdr(pd.DataFrame(tests)), pd.DataFrame(failures, columns=failure_columns)
+    return pd.DataFrame(coefficients), apply_fdr(pd.DataFrame(tests)), pd.DataFrame(failures, columns=failure_columns), pd.DataFrame(predictions)
 
 
 def run_mouse_models(mouse: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -972,9 +1103,10 @@ def plot_human_baseline_severity_trajectories(
 
 def plot_human_baseline_continuous_relationships(
     human: pd.DataFrame,
+    predictions: pd.DataFrame,
     output_stem: Path,
 ) -> None:
-    """Plot continuous T0-deficit associations with raw T1 and T2 outcomes."""
+    """Plot observations and predictions from the final baseline-moderation models."""
     set_figure_style()
     order = ["FM-LE", "FM-UE", "BI", "MRS", "NIHSS"]
     colors = {"T1": "#E69F00", "T2": "#0072B2"}
@@ -991,64 +1123,48 @@ def plot_human_baseline_continuous_relationships(
             how="inner",
         )
         followup["visit"] = followup["visit"].cat.remove_unused_categories()
-        subject_baselines = followup[["record_id", "baseline_deficit"]].drop_duplicates()
-        baseline_mean = subject_baselines["baseline_deficit"].mean()
-        baseline_sd = subject_baselines["baseline_deficit"].std()
-        followup["baseline_deficit_z"] = (followup["baseline_deficit"] - baseline_mean) / baseline_sd
-
-        result, _ = fit_gaussian_gee(
-            followup,
-            "score ~ C(visit) * baseline_deficit_z",
-            "record_id",
-        )
-        deficit_grid = np.linspace(
-            subject_baselines["baseline_deficit"].min(),
-            subject_baselines["baseline_deficit"].max(),
-            150,
-        )
+        assessment_predictions = predictions.loc[predictions["assessment"] == assessment]
+        if assessment_predictions.empty:
+            axis.set_visible(False)
+            continue
+        model_name = assessment_predictions["model"].iloc[0]
+        binary_mrs = model_name == "binary_logistic_GEE_mRS_0_2"
 
         for visit in ("T1", "T2"):
             observed = followup.loc[followup["visit"] == visit]
+            observed_outcome = observed["score"].le(2).astype(int) if binary_mrs else observed["score"]
             axis.scatter(
                 100 * observed["baseline_deficit"],
-                observed["score"],
+                observed_outcome,
                 color=colors[visit],
                 s=7,
                 alpha=0.24,
                 linewidths=0,
                 zorder=1,
             )
-
-            prediction_data = pd.DataFrame(
-                {
-                    "visit": visit,
-                    "baseline_deficit": deficit_grid,
-                    "baseline_deficit_z": (deficit_grid - baseline_mean) / baseline_sd,
-                }
-            )
-            prediction_data["visit"] = pd.Categorical(
-                prediction_data["visit"],
-                categories=followup["visit"].cat.categories,
-                ordered=True,
-            )
-            design = np.asarray(build_design_matrices([result.model.data.design_info], prediction_data)[0])
-            estimates = design @ result.params.to_numpy()
-            covariance = result.cov_params().to_numpy()
-            standard_errors = np.sqrt(np.einsum("ij,jk,ik->i", design, covariance, design))
-            axis.plot(100 * deficit_grid, estimates, color=colors[visit], linewidth=1.4, zorder=3)
+            fitted = assessment_predictions.loc[assessment_predictions["visit"] == visit]
+            axis.plot(100 * fitted["baseline_deficit"], fitted["predicted_outcome"], color=colors[visit], linewidth=1.4, zorder=3)
             axis.fill_between(
-                100 * deficit_grid,
-                estimates - 1.96 * standard_errors,
-                estimates + 1.96 * standard_errors,
+                100 * fitted["baseline_deficit"],
+                fitted["ci_95_low"],
+                fitted["ci_95_high"],
                 color=colors[visit],
                 alpha=0.14,
                 linewidth=0,
                 zorder=2,
             )
 
-        axis.set_title(assessment)
+        short_model = {
+            "random_intercept_LMM": "LMM",
+            "Gaussian_GEE_fallback": "GEE",
+            "binary_logistic_GEE_mRS_0_2": "binary GEE",
+        }.get(model_name, model_name)
+        display_assessment = "mRS" if assessment == "MRS" else assessment
+        axis.set_title(f"{display_assessment}\n{short_model}")
         axis.set_xlabel("")
         axis.set_ylabel("")
+        if binary_mrs:
+            axis.set_ylim(-0.05, 1.05)
         style_axis(axis)
 
     legend = [
@@ -1057,7 +1173,7 @@ def plot_human_baseline_continuous_relationships(
     ]
     figure.legend(handles=legend, loc="upper center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 1.01))
     figure.supxlabel("Continuous T0 deficit (% of scale)", x=0.53, y=0.03)
-    figure.supylabel("Raw follow-up score", x=0.015)
+    figure.supylabel("Model outcome", x=0.01)
     figure.subplots_adjust(left=0.07, right=0.99, bottom=0.2, top=0.78, wspace=0.42)
     save_figure(figure, output_stem)
 
@@ -1184,7 +1300,7 @@ def write_summary(
         "",
         "## Data Use",
         "",
-        f"- Human: {human['record_id'].nunique()} records with {int(human['valid_score'].sum())} valid score observations.",
+        f"- Human: provisional cohort of {human['record_id'].nunique()} records with {int(human['valid_score'].sum())} valid score observations.",
         f"- Mouse: {mouse['animal_id'].nunique()} eligible animals with {int(mouse['valid_value'].sum())} aggregated valid outcome observations.",
         f"- Human out-of-range observations: {int((~human['valid_score']).sum())}.",
         f"- Mouse out-of-range observations: {int((~mouse['valid_value']).sum())}.",
@@ -1200,7 +1316,7 @@ def write_summary(
         "",
         "## Important Limitations",
         "",
-        "- Two FM-LE source values exceed the documented maximum of 86 and are excluded from modeling pending source verification.",
+        "- Two FM-LE source values exceed the documented maximum of 86: one is in the provisional cohort and one belongs to the excluded T1-only record. Neither is modeled pending source verification.",
         "- Nominal human visits are used because exact days after stroke are not present in the supplied workbooks.",
         "- Gaussian mixed models may not fully represent bounded or zero-heavy outcomes; diagnostics and alternative outcome-specific models remain necessary before publication.",
         "- The GEE analyses for mRS are population-averaged rather than subject-specific; the binary fallback loses ordinal information.",
@@ -1244,23 +1360,32 @@ def run(root: Path, output_dir: Path) -> None:
     human, human_quality = load_human_inputs(root)
     mouse, mouse_quality = load_mouse_input(root)
 
-    valid_human = human.loc[human["valid_score"]].copy()
+    analysis_human = human.loc[human["analysis_eligible"]].copy()
+    valid_human = analysis_human.loc[analysis_human["valid_score"]].copy()
     valid_mouse = mouse.loc[mouse["valid_value"]].copy()
     quality_checks = pd.concat([human_quality.assign(dataset="human"), mouse_quality.assign(dataset="mouse")], ignore_index=True)
+    human_flow, human_assessment_flow = human_subject_flow(human)
+    mouse_flow, mouse_assessment_flow = mouse_subject_flow(mouse, mouse_quality)
     human_availability = availability_table(valid_human, "assessment", "visit", "record_id")
     mouse_availability = availability_table(valid_mouse, "outcome", "day", "animal_id")
-    human_boundaries = boundary_table(human, "assessment", "visit", "score", "valid_score")
+    human_boundaries = boundary_table(analysis_human, "assessment", "visit", "score", "valid_score")
     mouse_boundaries = boundary_table(mouse, "outcome", "day", "value", "valid_value")
     human_descriptive = descriptive_table(valid_human, ["assessment", "visit"], "score", "record_id")
     mouse_descriptive = descriptive_table(valid_mouse, ["outcome", "group", "day"], "value", "animal_id")
-    standardized_responsiveness, paired_srm = human_responsiveness_tables(human)
-    nominal_slopes, slope_correlations = human_nominal_slopes_and_correlations(human)
-    baseline_predictions = human_baseline_severity_predictions(human)
-    cross_species_summary = cross_species_stage_summary(human, mouse)
+    standardized_responsiveness, paired_srm = human_responsiveness_tables(analysis_human)
+    nominal_slopes, slope_correlations = human_nominal_slopes_and_correlations(analysis_human)
+    cross_species_summary = cross_species_stage_summary(analysis_human, mouse)
+    human_coefficients, human_tests, human_failures, baseline_predictions = run_human_models(analysis_human)
+    mouse_coefficients, mouse_tests, mouse_failures = run_mouse_models(mouse)
+    failures = pd.concat([human_failures, mouse_failures], ignore_index=True)
 
     human.to_csv(output_dir / "human_long_all_available.csv", index=False)
     mouse.to_csv(output_dir / "mouse_long_eligible_aggregated.csv", index=False)
     quality_checks.to_csv(output_dir / "input_quality_checks.csv", index=False)
+    human_flow.to_csv(output_dir / "human_subject_flow.csv", index=False)
+    human_assessment_flow.to_csv(output_dir / "human_assessment_flow.csv", index=False)
+    mouse_flow.to_csv(output_dir / "mouse_subject_flow.csv", index=False)
+    mouse_assessment_flow.to_csv(output_dir / "mouse_assessment_flow.csv", index=False)
     human_availability.to_csv(output_dir / "human_availability.csv", index=False)
     mouse_availability.to_csv(output_dir / "mouse_availability.csv", index=False)
     human_boundaries.to_csv(output_dir / "human_boundary_summary.csv", index=False)
@@ -1271,26 +1396,38 @@ def run(root: Path, output_dir: Path) -> None:
     paired_srm.to_csv(output_dir / "human_paired_standardized_response.csv", index=False)
     nominal_slopes.to_csv(output_dir / "human_nominal_visit_slopes.csv", index=False)
     slope_correlations.to_csv(output_dir / "human_slope_correlations.csv", index=False)
-    baseline_predictions.to_csv(output_dir / "human_baseline_severity_predictions.csv", index=False)
+    baseline_predictions.to_csv(output_dir / "human_baseline_continuous_predictions.csv", index=False)
     cross_species_summary.to_csv(output_dir / "cross_species_stage_summary.csv", index=False)
     human.loc[~human["valid_score"]].to_csv(output_dir / "human_range_violations.csv", index=False)
     mouse.loc[~mouse["valid_value"]].to_csv(output_dir / "mouse_range_violations.csv", index=False)
-    human.groupby(["stroke_category", "stroke_type_raw"], dropna=False)["record_id"].nunique().reset_index(name="n_subjects").to_csv(output_dir / "human_stroke_counts.csv", index=False)
+    analysis_human.groupby(["stroke_category", "stroke_type_raw"], dropna=False)["record_id"].nunique().reset_index(name="n_subjects").to_csv(output_dir / "human_stroke_counts.csv", index=False)
     mouse.groupby(["group", "stroke_type"], dropna=False)["animal_id"].nunique().reset_index(name="n_animals").to_csv(output_dir / "mouse_group_counts.csv", index=False)
 
-    human_coefficients, human_tests, human_failures = run_human_models(human)
-    mouse_coefficients, mouse_tests, mouse_failures = run_mouse_models(mouse)
-    failures = pd.concat([human_failures, mouse_failures], ignore_index=True)
     human_coefficients.to_csv(output_dir / "human_model_coefficients.csv", index=False)
     human_tests.to_csv(output_dir / "human_model_tests.csv", index=False)
     mouse_coefficients.to_csv(output_dir / "mouse_model_coefficients.csv", index=False)
     mouse_tests.to_csv(output_dir / "mouse_model_tests.csv", index=False)
     failures.to_csv(output_dir / "model_failures.csv", index=False)
-    boundary_sensitivity = human_coefficients.loc[human_coefficients["analysis"].isin(["exclude_baseline_boundaries", "exclude_boundary_observations"])]
+    sensitivity_names = [
+        "exclude_baseline_boundaries",
+        "exclude_boundary_observations",
+        "baseline_moderation_exclude_baseline_boundaries",
+        "baseline_moderation_exclude_boundary_observations",
+    ]
+    boundary_sensitivity = human_coefficients.loc[human_coefficients["analysis"].isin(sensitivity_names)]
+    boundary_sensitivity_tests = human_tests.loc[human_tests["analysis"].isin(sensitivity_names)]
     boundary_sensitivity.to_csv(output_dir / "human_boundary_sensitivity_coefficients.csv", index=False)
+    boundary_sensitivity_tests.to_csv(output_dir / "human_boundary_sensitivity_tests.csv", index=False)
+    pd.DataFrame(
+        [{"assessment": assessment, **metadata} for assessment, metadata in HUMAN_SCALES.items()]
+    ).to_csv(output_dir / "human_scale_definitions.csv", index=False)
 
     tables = {
         "quality": quality_checks,
+        "human_subject_flow": human_flow,
+        "human_assessment_flow": human_assessment_flow,
+        "mouse_subject_flow": mouse_flow,
+        "mouse_assessment_flow": mouse_assessment_flow,
         "human_availability": human_availability,
         "mouse_availability": mouse_availability,
         "human_mean_sd": human_descriptive,
@@ -1306,20 +1443,20 @@ def run(root: Path, output_dir: Path) -> None:
         "human_model_tests": human_tests,
         "human_coefficients": human_coefficients,
         "boundary_sensitivity": boundary_sensitivity,
+        "boundary_sens_tests": boundary_sensitivity_tests,
         "mouse_model_tests": mouse_tests,
         "mouse_coefficients": mouse_coefficients,
         "model_failures": failures,
     }
     write_excel_workbook(output_dir / "reanalysis_statistical_tables.xlsx", tables)
 
-    plot_human_trajectories(human, output_dir / "human_raw_score_trajectories")
-    plot_human_baseline_followup(human, output_dir / "human_baseline_followup")
-    plot_human_baseline_severity_trajectories(human, baseline_predictions, output_dir / "human_baseline_severity_trajectories")
-    plot_human_baseline_continuous_relationships(human, output_dir / "human_baseline_continuous_relationships_prototype")
-    plot_human_boundaries(human, output_dir / "human_floor_ceiling")
+    plot_human_trajectories(analysis_human, output_dir / "human_raw_score_trajectories")
+    plot_human_baseline_followup(analysis_human, output_dir / "human_baseline_followup")
+    plot_human_baseline_continuous_relationships(analysis_human, baseline_predictions, output_dir / "human_baseline_continuous_relationships")
+    plot_human_boundaries(analysis_human, output_dir / "human_floor_ceiling")
     plot_mouse_trajectories(mouse, output_dir / "mouse_raw_score_trajectories")
     plot_cross_species_standardized(cross_species_summary, output_dir / "cross_species_standardized_trajectories")
-    write_summary(output_dir, human, mouse, human_tests, mouse_tests, failures)
+    write_summary(output_dir, analysis_human, mouse, human_tests, mouse_tests, failures)
 
 
 def main() -> None:

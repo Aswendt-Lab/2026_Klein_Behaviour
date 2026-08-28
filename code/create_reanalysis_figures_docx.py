@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import pandas as pd
@@ -19,7 +20,8 @@ FIGURES = [
         "trajectory for participants with lower and higher initial deficits and state "
         "which assessment is most sensitive to these differences. Consider nonlinear "
         "time effects or splines and use actual days after stroke if available.",
-        "Figure 2 intentionally shows the observed raw trajectories. The requested "
+        "Figure 2 shows observed raw trajectories within the provisional 120-participant "
+        "T0 cohort. The requested "
         "Time x Baseline result is now shown separately in Figure 4 using predictions "
         "from models that retain baseline deficit continuously. Human time remains "
         "categorical because the source files provide only T0, T1, and T2, not exact "
@@ -35,7 +37,9 @@ FIGURES = [
         "with approximate 95% confidence intervals (mean +/- 1.96 SEM). Higher FM "
         "and BI scores indicate better performance, whereas lower mRS and NIHSS "
         "scores indicate less disability or neurological impairment. All available "
-        "observations were included; complete data at all three visits were not required.",
+        "observations in the provisional T0 cohort were included; complete data at all "
+        "three visits were not required. The historical N=91 cannot be reconstructed "
+        "without an authoritative protocol-eligibility ledger.",
         "Replace existing Figure 2. The new figure retains the cross-assessment "
         "trajectory comparison but removes recovery-pattern classification and uses "
         "all available raw longitudinal observations.",
@@ -52,7 +56,8 @@ FIGURES = [
         "Boundary values are valid scale scores and were not corrected. The primary "
         "models retain them. Two diagnostic analyses exclude participants already at "
         "a boundary at T0 or exclude individual boundary observations; their model "
-        "coefficients and tests are supplied in the statistical workbook. Two FM-LE "
+        "coefficients and tests, including Time x Baseline sensitivity tests, are supplied "
+        "in the statistical workbook. Two FM-LE "
         "values above the documented maximum are reported separately and excluded from models.",
         "Floor and ceiling effects across clinical assessments and visits.",
         "Bars show the percentage of available observations located exactly at the "
@@ -69,7 +74,7 @@ FIGURES = [
         "five clinical assessments.",
     ),
     (
-        "human_baseline_continuous_relationships_prototype.svg",
+        "human_baseline_continuous_relationships.svg",
         4,
         "Avoid mathematical coupling in change-score models. The authors should "
         "abandon change scores (Y - X) as dependent variables and instead model raw "
@@ -80,22 +85,25 @@ FIGURES = [
         "whether the T1 and T2 points are follow-up percentiles or model predictions. "
         "A direct display of the continuous baseline relationship would make the tested "
         "Time x Baseline interaction easier to understand.",
-        "Figure 4 was redesigned to display every observed T1 and T2 score against the "
+        "Figure 4 now displays every observed T1 and T2 outcome against the "
         "full continuous T0-deficit range. Separate fitted T1 and T2 relationships now "
-        "show the interaction directly as a difference in slopes. No percentile cutoff, "
-        "severity group, change score, or PRR quantity is used.",
+        "show the interaction directly as a difference in slopes. The fitted lines and "
+        "Table 3 are generated from the same final outcome-specific model. No percentile "
+        "cutoff, severity group, change score, or PRR quantity is used.",
         "Continuous initial deficit and raw follow-up outcomes.",
-        "Raw T1 (orange) and T2 (blue) scores are plotted against continuous T0 deficit, "
+        "Raw T1 (orange) and T2 (blue) outcomes are plotted against continuous T0 deficit, "
         "expressed as a percentage of each assessment's theoretical range and oriented "
         "so that larger values indicate worse initial status. Solid lines show the "
         "population-average fitted relationship at each visit, and shaded bands show "
         "approximate 95% confidence intervals for the estimated mean. The Time x Baseline "
         "interaction tests whether the T1 and T2 slopes differ. Thus, a significant "
         "interaction indicates that the association between initial deficit and outcome "
-        "changes between visits; it does not test two baseline-severity groups. This "
-        "prototype uses Gaussian GEE for a common visual form across assessments; the "
-        "final inferential panel should use predictions from the same outcome-specific "
-        "models as the accompanying statistical tests.",
+        "changes between visits; it does not test two baseline-severity groups. Lines are "
+        "predictions from the same outcome-specific models used for the accompanying tests: "
+        "random-intercept LMM or Gaussian GEE for continuous scores and, where the ordinal "
+        "model is unstable, binary GEE for favorable mRS (0-2). The mRS panel therefore "
+        "shows observed favorable-status values and fitted probabilities rather than a "
+        "Gaussian raw-score approximation.",
         "Replace existing Figure 4. The PRR and best-fit change-score panels should "
         "be removed and replaced by the direct continuous T0-deficit versus raw T1/T2 "
         "outcome relationships.",
@@ -133,32 +141,56 @@ FIGURES = [
 
 TABLES = [
     (
+        "human_subject_flow.csv",
+        "Table 1A. Human cohort audit and provisional analysis population",
+        ["stage", "n_subjects", "status"],
+        ["Stage", "n", "Status"],
+    ),
+    (
+        "human_assessment_flow.csv",
+        "Table 1B. Human outcome availability within the provisional cohort",
+        ["assessment", "visit", "provisional_cohort_n", "score_available_n", "score_missing_n", "invalid_score_n", "analyzed_n"],
+        ["Assessment", "Visit", "Cohort n", "Available", "Missing", "Invalid", "Analyzed"],
+    ),
+    (
         "human_descriptive_mean_sd.csv",
-        "Table 1. Human outcomes by assessment and visit",
+        "Table 2. Human outcomes by assessment and visit",
         ["assessment", "visit", "n_observations", "mean", "sd"],
         ["Assessment", "Visit", "n", "Mean", "SD"],
     ),
     (
+        "mouse_subject_flow.csv",
+        "Table 3. Mouse cohort flow",
+        ["stage", "n_animals", "rule"],
+        ["Stage", "n", "Rule"],
+    ),
+    (
         "mouse_descriptive_mean_sd.csv",
-        "Table 2. Mouse outcomes by task, group, and day",
+        "Table 4. Mouse outcomes by task, group, and day",
         ["outcome", "group", "day", "n_observations", "mean", "sd"],
         ["Outcome", "Group", "Day", "n", "Mean", "SD"],
     ),
     (
         "human_model_tests.csv",
-        "Table 3. Human longitudinal model tests",
-        ["assessment", "analysis", "statistic", "df", "p_value", "p_value_fdr_bh"],
-        ["Assessment", "Analysis", "Statistic", "df", "p", "FDR p"],
+        "Table 5. Human longitudinal model tests",
+        ["assessment", "analysis", "model", "family", "statistic", "df", "p_value", "p_value_fdr_bh"],
+        ["Assessment", "Analysis", "Model", "FDR family", "Statistic", "df", "p", "FDR p"],
+    ),
+    (
+        "human_boundary_sensitivity_tests.csv",
+        "Table 6. Human boundary sensitivity tests",
+        ["assessment", "analysis", "model", "statistic", "df", "p_value", "p_value_fdr_bh"],
+        ["Assessment", "Analysis", "Model", "Statistic", "df", "p", "FDR p"],
     ),
     (
         "mouse_model_tests.csv",
-        "Table 4. Mouse longitudinal model tests",
+        "Table 7. Mouse longitudinal model tests",
         ["assessment", "analysis", "statistic", "df", "p_value", "p_value_fdr_bh"],
         ["Outcome", "Analysis", "Statistic", "df", "p", "FDR p"],
     ),
     (
         "human_boundary_summary.csv",
-        "Table 5. Human scale-boundary observations",
+        "Table 8. Human scale-boundary observations",
         ["assessment", "visit", "n", "n_at_floor", "pct_at_floor", "n_at_ceiling", "pct_at_ceiling"],
         ["Assessment", "Visit", "n", "Floor n", "Floor %", "Ceiling n", "Ceiling %"],
     ),
@@ -358,9 +390,13 @@ def create_document(figure_dir: Path, output_path: Path) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--figure-dir", type=Path, default=None)
+    parser.add_argument("--output-path", type=Path, default=None)
+    arguments = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    figure_dir = root / "output" / "reanalysis_reviewer1"
-    output_path = figure_dir / "longitudinal_reanalysis_figures_continuous_baseline_revision.docx"
+    figure_dir = arguments.figure_dir or root / "output" / "reanalysis_reviewer1"
+    output_path = arguments.output_path or figure_dir / "longitudinal_reanalysis_markus_todos_revision.docx"
     create_document(figure_dir, output_path)
     print(f"Word document written to {output_path}")
 

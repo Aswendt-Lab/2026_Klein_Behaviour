@@ -18,6 +18,23 @@ def test_human_preparation_retains_available_observations_and_flags_ranges():
     assert quality.loc[quality["check"] == "Out-of-range human scores", "value"].item() == 2
 
 
+def test_human_analysis_cohort_is_auditable_from_t0_and_metadata():
+    human, quality = analysis.load_human_inputs(ROOT)
+
+    eligible_ids = set(human.loc[human["analysis_eligible"], "record_id"])
+    excluded_ids = set(human.loc[~human["analysis_eligible"], "record_id"])
+    assert len(eligible_ids) == 120
+    assert excluded_ids == {121}
+    assert quality.loc[quality["check"] == "Provisional human analysis cohort", "value"].item() == 120
+
+
+def test_documented_human_scale_ranges_are_explicit():
+    assert analysis.HUMAN_SCALES["FM-UE"]["ceiling"] == 126
+    assert analysis.HUMAN_SCALES["FM-LE"]["ceiling"] == 86
+    assert analysis.HUMAN_SCALES["MRS"]["ceiling"] == 6
+    assert all(scale["definition"] for scale in analysis.HUMAN_SCALES.values())
+
+
 def test_mrs_uses_full_standard_range():
     human, _ = analysis.load_human_inputs(ROOT)
 

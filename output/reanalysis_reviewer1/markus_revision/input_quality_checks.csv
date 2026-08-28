@@ -1,0 +1,23 @@
+check,value,detail,dataset
+FM workbook rows,334,source rows,human
+Assessment workbook rows,334,source rows,human
+Human records in either workbook,128,"all record IDs, including records without selected scores",human
+Human records with any score,121,records with at least one selected score,human
+Provisional human analysis cohort,120,records with T0 score and stroke metadata; protocol eligibility ledger unavailable,human
+Scored records outside provisional cohort,1,retained for audit but excluded from analyses,human
+Human score observations,1298,non-missing raw scores,human
+Duplicate human keys,0,record/assessment/visit,human
+Out-of-range human scores,2,preserved and excluded from models,human
+Stroke CSV rows,120,canonical stroke metadata,human
+Stroke CSV/XLSX normalized text mismatches,18,encoding-insensitive comparison,human
+Mouse CSV rows,996,source rows,mouse
+Mouse CSV animals,162,unique StudyID_old with StudyID fallback,mouse
+Study-eligible mouse rows,883,IncludedInStudy=Ja and not Exclude,mouse
+Eligible mouse rows with day,883,modeled source rows,mouse
+Eligible mouse rows missing day,0,not modeled,mouse
+Excluded/non-study mouse rows,113,not modeled,mouse
+Eligible mouse animals,141,unique StudyID_old,mouse
+Replicate mouse rows,141,rows in duplicated animal/day groups; averaged,mouse
+Aggregated animal/day rows,797,one row per animal/day,mouse
+Mouse metadata conflicts,0,animal/metadata fields with multiple values,mouse
+Out-of-range mouse values,0,excluded from models,mouse
